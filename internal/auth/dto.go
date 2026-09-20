@@ -3,6 +3,7 @@ package auth
 import (
 	"strings"
 
+	"go-mini-setup/internal/database/db"
 	"go-mini-setup/internal/user"
 	"go-mini-setup/pkg/errors"
 )
@@ -12,6 +13,7 @@ type RegisterRequest struct {
 	Email    string  `json:"email"`
 	Password string  `json:"password"`
 	Name     *string `json:"name,omitempty"`
+	Role     *string `json:"role,omitempty"`
 }
 
 func (r *RegisterRequest) Validate() error {
@@ -29,13 +31,21 @@ func (r *RegisterRequest) Validate() error {
 		trimmed := strings.TrimSpace(*r.Name)
 		r.Name = &trimmed
 	}
+	if r.Role != nil {
+		roleUpper := strings.ToUpper(strings.TrimSpace(*r.Role))
+		if roleUpper != string(db.RoleUser) && roleUpper != string(db.RoleAdmin) && roleUpper != string(db.RoleSuperAdmin) {
+			return errors.NewBadRequestError("role must be USER, ADMIN, or SUPER_ADMIN")
+		}
+		r.Role = &roleUpper
+	}
 	return nil
 }
 
 // LoginRequest defines the incoming payload for authentication.
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	RememberMe bool   `json:"remember_me,omitempty"`
 }
 
 func (r *LoginRequest) Validate() error {
@@ -49,10 +59,23 @@ func (r *LoginRequest) Validate() error {
 	return nil
 }
 
-// AuthResponse defines the returned authentication token and user data.
+// RefreshTokenRequest defines payload for token refresh via request body (if not using cookie).
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token,omitempty"`
+}
+
+// LogoutRequest defines payload for logout revocation via request body (if not using cookie).
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token,omitempty"`
+}
+
+// AuthResponse defines the returned authentication tokens and user data.
 type AuthResponse struct {
-	Token string            `json:"token"`
-	User  user.UserResponse `json:"user"`
+	AccessToken  string            `json:"access_token"`
+	RefreshToken string            `json:"refresh_token,omitempty"`
+	TokenType    string            `json:"token_type"`
+	ExpiresIn    int64             `json:"expires_in"` // access token lifetime in seconds
+	User         user.UserResponse `json:"user"`
 }
 
 // MeResponse defines the user profile returned by /auth/me.

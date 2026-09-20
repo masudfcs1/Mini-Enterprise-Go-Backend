@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"go-mini-setup/internal/database/db"
 	"go-mini-setup/pkg/errors"
 )
 
@@ -12,6 +13,7 @@ type CreateUserRequest struct {
 	Email    string  `json:"email"`
 	Name     *string `json:"name,omitempty"`
 	Password *string `json:"password,omitempty"`
+	Role     *string `json:"role,omitempty"`
 }
 
 // Validate validates the CreateUserRequest.
@@ -27,6 +29,13 @@ func (r *CreateUserRequest) Validate() error {
 		trimmed := strings.TrimSpace(*r.Name)
 		r.Name = &trimmed
 	}
+	if r.Role != nil {
+		roleUpper := strings.ToUpper(strings.TrimSpace(*r.Role))
+		if roleUpper != string(db.RoleUser) && roleUpper != string(db.RoleAdmin) && roleUpper != string(db.RoleSuperAdmin) {
+			return errors.NewBadRequestError("role must be USER, ADMIN, or SUPER_ADMIN")
+		}
+		r.Role = &roleUpper
+	}
 	return nil
 }
 
@@ -34,12 +43,13 @@ func (r *CreateUserRequest) Validate() error {
 type UpdateUserRequest struct {
 	Email *string `json:"email,omitempty"`
 	Name  *string `json:"name,omitempty"`
+	Role  *string `json:"role,omitempty"`
 }
 
 // Validate validates the UpdateUserRequest.
 func (r *UpdateUserRequest) Validate() error {
-	if r.Email == nil && r.Name == nil {
-		return errors.NewBadRequestError("at least one field (email or name) must be provided to update")
+	if r.Email == nil && r.Name == nil && r.Role == nil {
+		return errors.NewBadRequestError("at least one field (email, name, or role) must be provided to update")
 	}
 	if r.Email != nil {
 		trimmed := strings.TrimSpace(*r.Email)
@@ -52,6 +62,13 @@ func (r *UpdateUserRequest) Validate() error {
 		trimmed := strings.TrimSpace(*r.Name)
 		r.Name = &trimmed
 	}
+	if r.Role != nil {
+		roleUpper := strings.ToUpper(strings.TrimSpace(*r.Role))
+		if roleUpper != string(db.RoleUser) && roleUpper != string(db.RoleAdmin) && roleUpper != string(db.RoleSuperAdmin) {
+			return errors.NewBadRequestError("role must be USER, ADMIN, or SUPER_ADMIN")
+		}
+		r.Role = &roleUpper
+	}
 	return nil
 }
 
@@ -60,6 +77,7 @@ type UserResponse struct {
 	ID        string    `json:"id"`
 	Email     string    `json:"email"`
 	Name      *string   `json:"name,omitempty"`
+	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -70,10 +88,16 @@ func ToUserResponse(u *UserModel) UserResponse {
 	if val, ok := u.Name(); ok {
 		name = &val
 	}
+	role := string(u.Role)
+	if role == "" {
+		role = string(db.RoleUser)
+	}
+
 	return UserResponse{
 		ID:        u.ID,
 		Email:     u.Email,
 		Name:      name,
+		Role:      role,
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
 	}

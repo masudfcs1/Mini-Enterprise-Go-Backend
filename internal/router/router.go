@@ -15,9 +15,11 @@ import (
 
 // Handlers collects all module handlers and global configurations for injection into the router.
 type Handlers struct {
-	User      *user.Handler
-	Auth      *auth.Handler
-	JWTSecret string
+	User            *user.Handler
+	Auth            *auth.Handler
+	JWTAccessSecret string
+	JWTIssuer       string
+	JWTAudience     string
 }
 
 // NewRouter constructs the global application router with all middlewares and mounted modules.
@@ -37,15 +39,25 @@ func NewRouter(h *Handlers) http.Handler {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		response.Success(w, http.StatusOK, "Welcome to Mini Enterprise Go Backend API", map[string]interface{}{
 			"architecture": "Modular Layered (Chi + Prisma ORM + PostgreSQL)",
-			"features":     []string{"Pino-style Colorful Logger", "JWT Authentication", "Rate Limiting", "PgBouncer Support"},
-			"version":      "1.0.0",
+			"features": []string{
+				"Dual-Token Auth (Access 15m + Refresh 7d/30d)",
+				"Prisma RBAC (USER, ADMIN, SUPER_ADMIN)",
+				"Cookie & Bearer Token Transports",
+				"Pino-style Colorful Logger",
+				"IP Rate Limiting",
+				"PgBouncer Pooler Support",
+			},
+			"version": "2.0.0",
 			"endpoints": map[string]string{
 				"health":        "GET /health",
 				"users":         "GET /api/v1/users",
 				"create_user":   "POST /api/v1/users",
+				"delete_user":   "DELETE /api/v1/users/{id} (Requires ADMIN / SUPER_ADMIN)",
 				"auth_register": "POST /api/v1/auth/register",
 				"auth_login":    "POST /api/v1/auth/login",
-				"auth_me":       "GET /api/v1/auth/me (Bearer token required)",
+				"auth_refresh":  "POST /api/v1/auth/refresh",
+				"auth_logout":   "POST /api/v1/auth/logout",
+				"auth_me":       "GET /api/v1/auth/me (Bearer token or cookie required)",
 			},
 		})
 	})
@@ -55,17 +67,17 @@ func NewRouter(h *Handlers) http.Handler {
 		response.Success(w, http.StatusOK, "Service is healthy", map[string]interface{}{
 			"status":    "UP",
 			"timestamp": time.Now().UTC(),
-			"version":   "1.0.0",
+			"version":   "2.0.0",
 		})
 	})
 
 	// API v1 Namespace
 	r.Route("/api/v1", func(r chi.Router) {
 		if h.Auth != nil {
-			auth.RegisterRoutes(r, h.Auth, h.JWTSecret)
+			auth.RegisterRoutes(r, h.Auth, h.JWTAccessSecret, h.JWTIssuer, h.JWTAudience)
 		}
 		if h.User != nil {
-			user.RegisterRoutes(r, h.User)
+			user.RegisterRoutes(r, h.User, h.JWTAccessSecret, h.JWTIssuer, h.JWTAudience)
 		}
 	})
 

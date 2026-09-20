@@ -6,18 +6,22 @@ import (
 )
 
 // RegisterRoutes registers auth routes to the provided router.
-func RegisterRoutes(r chi.Router, h *Handler, jwtSecret string) {
+func RegisterRoutes(r chi.Router, h *Handler, jwtSecret, jwtIssuer, jwtAudience string) {
 	r.Route("/auth", func(r chi.Router) {
-		// Strict rate limiting for login & register to prevent brute-force attacks
+		// Strict rate limiting for sensitive credential & token endpoints
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.StrictAuthRateLimiter())
 			r.Post("/register", h.Register)
 			r.Post("/login", h.Login)
+			r.Post("/refresh", h.Refresh)
 		})
 
-		// Protected endpoints requiring a valid JWT Bearer token
+		// Logout endpoint
+		r.Post("/logout", h.Logout)
+
+		// Protected endpoints requiring a valid JWT Access token
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.RequireAuth(jwtSecret))
+			r.Use(middleware.RequireAuth(jwtSecret, jwtIssuer, jwtAudience))
 			r.Get("/me", h.GetMe)
 		})
 	})

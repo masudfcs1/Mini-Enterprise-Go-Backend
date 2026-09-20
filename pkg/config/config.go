@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,11 +12,40 @@ import (
 
 // Config holds all configuration for the application.
 type Config struct {
-	Port        string
-	DatabaseURL string
-	Env         string
-	JWTSecret   string
-	JWTTTL      time.Duration
+	Port                      string
+	DatabaseURL               string
+	Env                       string
+	JWTAccessSecret           string
+	JWTRefreshSecret          string
+	AuthTokenSecret           string
+	CookieSecret              string
+	JWTAccessExpires          time.Duration
+	JWTRefreshExpires         time.Duration
+	JWTRefreshRememberExpires time.Duration
+	JWTIssuer                 string
+	JWTAudience               string
+	AuthTokenTransport        string // "cookie" or "bearer"
+}
+
+func parseDurationWithDays(str string, fallback time.Duration) time.Duration {
+	str = strings.TrimSpace(str)
+	if str == "" {
+		return fallback
+	}
+
+	if strings.HasSuffix(str, "d") {
+		daysStr := strings.TrimSuffix(str, "d")
+		days, err := strconv.Atoi(daysStr)
+		if err == nil {
+			return time.Duration(days) * 24 * time.Hour
+		}
+	}
+
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		return fallback
+	}
+	return d
 }
 
 // LoadConfig reads configuration from environment variables and .env file.
@@ -49,16 +79,58 @@ func LoadConfig() *Config {
 		env = "development"
 	}
 
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "mini-enterprise-go-jwt-secret-key-32bytes-secure!"
+	jwtAccessSecret := os.Getenv("JWT_ACCESS_SECRET")
+	if jwtAccessSecret == "" {
+		jwtAccessSecret = "jwt-access-secret-at-least-32-chars-long-2026!"
+	}
+
+	jwtRefreshSecret := os.Getenv("JWT_REFRESH_SECRET")
+	if jwtRefreshSecret == "" {
+		jwtRefreshSecret = "jwt-refresh-secret-at-least-32-chars-long-2026!"
+	}
+
+	authTokenSecret := os.Getenv("AUTH_TOKEN_SECRET")
+	if authTokenSecret == "" {
+		authTokenSecret = "auth-challenge-hmac-secret-at-least-32-chars!"
+	}
+
+	cookieSecret := os.Getenv("COOKIE_SECRET")
+	if cookieSecret == "" {
+		cookieSecret = "cookie-secret-at-least-32-chars-long-2026!"
+	}
+
+	jwtAccessExpires := parseDurationWithDays(os.Getenv("JWT_ACCESS_EXPIRES"), 15*time.Minute)
+	jwtRefreshExpires := parseDurationWithDays(os.Getenv("JWT_REFRESH_EXPIRES"), 7*24*time.Hour)
+	jwtRefreshRememberExpires := parseDurationWithDays(os.Getenv("JWT_REFRESH_REMEMBER_EXPIRES"), 30*24*time.Hour)
+
+	jwtIssuer := os.Getenv("JWT_ISSUER")
+	if jwtIssuer == "" {
+		jwtIssuer = "enterprise-backend"
+	}
+
+	jwtAudience := os.Getenv("JWT_AUDIENCE")
+	if jwtAudience == "" {
+		jwtAudience = "enterprise-api"
+	}
+
+	authTokenTransport := strings.ToLower(os.Getenv("AUTH_TOKEN_TRANSPORT"))
+	if authTokenTransport == "" {
+		authTokenTransport = "cookie"
 	}
 
 	return &Config{
-		Port:        port,
-		DatabaseURL: databaseURL,
-		Env:         env,
-		JWTSecret:   jwtSecret,
-		JWTTTL:      24 * time.Hour,
+		Port:                      port,
+		DatabaseURL:               databaseURL,
+		Env:                       env,
+		JWTAccessSecret:           jwtAccessSecret,
+		JWTRefreshSecret:          jwtRefreshSecret,
+		AuthTokenSecret:           authTokenSecret,
+		CookieSecret:              cookieSecret,
+		JWTAccessExpires:          jwtAccessExpires,
+		JWTRefreshExpires:         jwtRefreshExpires,
+		JWTRefreshRememberExpires: jwtRefreshRememberExpires,
+		JWTIssuer:                 jwtIssuer,
+		JWTAudience:               jwtAudience,
+		AuthTokenTransport:        authTokenTransport,
 	}
 }

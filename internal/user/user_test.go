@@ -47,11 +47,17 @@ func (m *MockUserRepository) FindByEmail(ctx context.Context, email string) (*Us
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, req CreateUserRequest) (*UserModel, error) {
+	role := db.RoleUser
+	if req.Role != nil {
+		role = db.Role(*req.Role)
+	}
+
 	u := UserModel{
 		InnerUser: db.InnerUser{
 			ID:        "user-123",
 			Email:     req.Email,
 			Name:      req.Name,
+			Role:      role,
 			CreatedAt: db.DateTime(time.Now()),
 			UpdatedAt: db.DateTime(time.Now()),
 		},
@@ -70,6 +76,9 @@ func (m *MockUserRepository) Update(ctx context.Context, id string, req UpdateUs
 	}
 	if req.Name != nil {
 		u.InnerUser.Name = req.Name
+	}
+	if req.Role != nil {
+		u.InnerUser.Role = db.Role(*req.Role)
 	}
 	m.users[id] = u
 	return &u, nil
@@ -101,6 +110,9 @@ func TestUserService_CreateUser(t *testing.T) {
 	}
 	if userRes.Email != "alice@example.com" {
 		t.Errorf("expected email 'alice@example.com', got %s", userRes.Email)
+	}
+	if userRes.Role != "USER" {
+		t.Errorf("expected default role USER, got %s", userRes.Role)
 	}
 
 	// Conflict test

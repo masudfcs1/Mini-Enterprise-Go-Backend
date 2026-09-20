@@ -46,17 +46,19 @@ func main() {
 
 	// 6. Initialize Services
 	userService := user.NewUserService(userRepo)
-	authService := auth.NewAuthService(authRepo, cfg.JWTSecret, cfg.JWTTTL)
+	authService := auth.NewAuthService(authRepo, cfg)
 
 	// 7. Initialize Handlers
 	userHandler := user.NewHandler(userService)
-	authHandler := auth.NewHandler(authService)
+	authHandler := auth.NewHandler(authService, cfg)
 
 	// 8. Build Global Router with Middlewares
 	handler := router.NewRouter(&router.Handlers{
-		User:      userHandler,
-		Auth:      authHandler,
-		JWTSecret: cfg.JWTSecret,
+		User:            userHandler,
+		Auth:            authHandler,
+		JWTAccessSecret: cfg.JWTAccessSecret,
+		JWTIssuer:       cfg.JWTIssuer,
+		JWTAudience:     cfg.JWTAudience,
 	})
 
 	// 9. Configure HTTP Server
@@ -71,7 +73,10 @@ func main() {
 	// 10. Run Server in Background Goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
-		logger.Log.Info().Str("port", cfg.Port).Msg("[Server] HTTP server ready to accept incoming requests")
+		logger.Log.Info().
+			Str("port", cfg.Port).
+			Str("transport", cfg.AuthTokenTransport).
+			Msg("[Server] HTTP server ready to accept incoming requests")
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErrors <- err
 		}

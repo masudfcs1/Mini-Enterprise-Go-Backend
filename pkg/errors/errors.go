@@ -54,6 +54,14 @@ func NewUnauthorizedError(message string) *AppError {
 	}
 }
 
+func NewForbiddenError(message string) *AppError {
+	return &AppError{
+		Status:  http.StatusForbidden,
+		Code:    "FORBIDDEN",
+		Message: message,
+	}
+}
+
 func NewInternalError(message string) *AppError {
 	return &AppError{
 		Status:  http.StatusInternalServerError,

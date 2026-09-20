@@ -47,6 +47,9 @@ func (r *userRepository) Create(ctx context.Context, req CreateUserRequest) (*Us
 	if req.Password != nil {
 		optionalParams = append(optionalParams, db.User.Password.Set(*req.Password))
 	}
+	if req.Role != nil {
+		optionalParams = append(optionalParams, db.User.Role.Set(db.Role(*req.Role)))
+	}
 
 	return r.client.User.CreateOne(
 		db.User.Email.Set(req.Email),
@@ -61,6 +64,9 @@ func (r *userRepository) Update(ctx context.Context, id string, req UpdateUserRe
 	}
 	if req.Name != nil {
 		params = append(params, db.User.Name.Set(*req.Name))
+	}
+	if req.Role != nil {
+		params = append(params, db.User.Role.Set(db.Role(*req.Role)))
 	}
 
 	return r.client.User.FindUnique(
