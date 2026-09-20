@@ -8,6 +8,7 @@ import (
 
 	"go-mini-setup/internal/database/db"
 	"go-mini-setup/pkg/errors"
+	"go-mini-setup/pkg/jwt"
 )
 
 type MockAuthRepository struct {
@@ -29,6 +30,14 @@ func (m *MockAuthRepository) FindByEmail(ctx context.Context, email string) (*db
 	return nil, nil
 }
 
+func (m *MockAuthRepository) FindByID(ctx context.Context, id string) (*db.UserModel, error) {
+	u, ok := m.users[id]
+	if !ok {
+		return nil, nil
+	}
+	return &u, nil
+}
+
 func (m *MockAuthRepository) CreateUser(ctx context.Context, email, password string, name *string) (*db.UserModel, error) {
 	u := db.UserModel{
 		InnerUser: db.InnerUser{
@@ -46,7 +55,8 @@ func (m *MockAuthRepository) CreateUser(ctx context.Context, email, password str
 
 func TestAuthService_RegisterAndLogin(t *testing.T) {
 	repo := NewMockAuthRepository()
-	service := NewAuthService(repo)
+	secret := "test-secret-key-32bytes-secure!"
+	service := NewAuthService(repo, secret, 1*time.Hour)
 	ctx := context.Background()
 
 	name := "Charlie"
@@ -68,6 +78,18 @@ func TestAuthService_RegisterAndLogin(t *testing.T) {
 		t.Errorf("expected email charlie@example.com, got %s", regRes.User.Email)
 	}
 
+	// Validate JWT signature and claims
+	claims, err := jwt.ValidateToken(regRes.Token, secret)
+	if err != nil {
+		t.Fatalf("expected valid JWT token, got error: %v", err)
+	}
+	if claims.UserID != regRes.User.ID {
+		t.Errorf("expected claims UserID %s, got %s", regRes.User.ID, claims.UserID)
+	}
+	if claims.Email != regRes.User.Email {
+		t.Errorf("expected claims Email %s, got %s", regRes.User.Email, claims.Email)
+	}
+
 	// Conflict Register
 	_, err = service.Register(ctx, regReq)
 	if err == nil {
@@ -84,6 +106,15 @@ func TestAuthService_RegisterAndLogin(t *testing.T) {
 	}
 	if loginRes.Token == "" {
 		t.Fatal("expected non-empty auth token on login")
+	}
+
+	// GetMe Success
+	meRes, err := service.GetMe(ctx, regRes.User.ID)
+	if err != nil {
+		t.Fatalf("expected GetMe success, got %v", err)
+	}
+	if meRes.User.Email != "charlie@example.com" {
+		t.Errorf("expected email charlie@example.com, got %s", meRes.User.Email)
 	}
 
 	// Login Invalid Password

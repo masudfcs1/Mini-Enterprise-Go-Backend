@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"go-mini-setup/pkg/errors"
+	"go-mini-setup/pkg/middleware"
 	"go-mini-setup/pkg/response"
 )
 
@@ -52,4 +53,21 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "Login successful", authRes)
+}
+
+// GetMe handles GET /api/v1/auth/me (JWT protected).
+func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserID(r.Context())
+	if !ok || userID == "" {
+		errors.HandleError(w, errors.NewUnauthorizedError("unauthorized: missing or invalid user context"))
+		return
+	}
+
+	meRes, err := h.service.GetMe(r.Context(), userID)
+	if err != nil {
+		errors.HandleError(w, err)
+		return
+	}
+
+	response.Success(w, http.StatusOK, "Current user profile fetched", meRes)
 }

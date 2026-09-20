@@ -9,6 +9,7 @@ import (
 // AuthRepository defines database queries needed for authentication.
 type AuthRepository interface {
 	FindByEmail(ctx context.Context, email string) (*db.UserModel, error)
+	FindByID(ctx context.Context, id string) (*db.UserModel, error)
 	CreateUser(ctx context.Context, email, password string, name *string) (*db.UserModel, error)
 }
 
@@ -25,6 +26,10 @@ func NewAuthRepository(client *db.PrismaClient) AuthRepository {
 
 func (r *authRepository) FindByEmail(ctx context.Context, email string) (*db.UserModel, error) {
 	return r.client.User.FindUnique(db.User.Email.Equals(email)).Exec(ctx)
+}
+
+func (r *authRepository) FindByID(ctx context.Context, id string) (*db.UserModel, error) {
+	return r.client.User.FindUnique(db.User.ID.Equals(id)).Exec(ctx)
 }
 
 func (r *authRepository) CreateUser(ctx context.Context, email, password string, name *string) (*db.UserModel, error) {

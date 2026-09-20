@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,43 +15,51 @@ import (
 	"go-mini-setup/internal/router"
 	"go-mini-setup/internal/user"
 	"go-mini-setup/pkg/config"
+	"go-mini-setup/pkg/logger"
 )
 
 func main() {
 	// 1. Load Configuration
 	cfg := config.LoadConfig()
-	log.Printf("[Server] Starting application in %s mode on port :%s", cfg.Env, cfg.Port)
 
-	// 2. Connect Database (Prisma Client Go)
+	// 2. Initialize Pino-Style Structured & Colorful Logger
+	logger.InitLogger(cfg.Env)
+
+	// 3. Connect Database (Prisma Client Go with PgBouncer Support)
 	dbInstance, err := database.New()
 	if err != nil {
-		log.Fatalf("[Server] Database connection error: %v", err)
+		logger.Log.Fatal().Err(err).Msg("[Database] Failed to connect to database via Prisma")
 	}
 	defer func() {
 		if err := dbInstance.Close(); err != nil {
-			log.Printf("[Server] Error closing database: %v", err)
+			logger.Log.Error().Err(err).Msg("[Database] Error closing database connection")
 		}
 	}()
 
-	// 3. Initialize Repositories
+	// 4. Print Vibrant Startup Banner
+	dbTarget := "PostgreSQL (PgBouncer Enabled)"
+	logger.PrintBanner(cfg.Port, cfg.Env, dbTarget)
+
+	// 5. Initialize Repositories
 	userRepo := user.NewUserRepository(dbInstance.Client)
 	authRepo := auth.NewAuthRepository(dbInstance.Client)
 
-	// 4. Initialize Services
+	// 6. Initialize Services
 	userService := user.NewUserService(userRepo)
-	authService := auth.NewAuthService(authRepo)
+	authService := auth.NewAuthService(authRepo, cfg.JWTSecret, cfg.JWTTTL)
 
-	// 5. Initialize Handlers
+	// 7. Initialize Handlers
 	userHandler := user.NewHandler(userService)
 	authHandler := auth.NewHandler(authService)
 
-	// 6. Build Global Router
+	// 8. Build Global Router with Middlewares
 	handler := router.NewRouter(&router.Handlers{
-		User: userHandler,
-		Auth: authHandler,
+		User:      userHandler,
+		Auth:      authHandler,
+		JWTSecret: cfg.JWTSecret,
 	})
 
-	// 7. Configure HTTP Server
+	// 9. Configure HTTP Server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),
 		Handler:      handler,
@@ -61,34 +68,34 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// 8. Run Server in Background Goroutine
+	// 10. Run Server in Background Goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
-		log.Printf("[Server] HTTP server is listening on http://localhost:%s", cfg.Port)
+		logger.Log.Info().Str("port", cfg.Port).Msg("[Server] HTTP server ready to accept incoming requests")
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErrors <- err
 		}
 	}()
 
-	// 9. Listen for Graceful Shutdown Signals
+	// 11. Listen for Graceful Shutdown Signals (SIGINT, SIGTERM)
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
 	select {
 	case err := <-serverErrors:
-		log.Fatalf("[Server] Failed to start server: %v", err)
+		logger.Log.Fatal().Err(err).Msg("[Server] Fatal error encountered while starting server")
 
 	case sig := <-shutdown:
-		log.Printf("[Server] Shutdown signal received (%s), starting graceful shutdown...", sig)
+		logger.Log.Info().Str("signal", sig.String()).Msg("[Server] Shutdown signal received, gracefully terminating...")
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("[Server] Graceful shutdown failed, forcing server close: %v", err)
+			logger.Log.Error().Err(err).Msg("[Server] Graceful shutdown timed out, forcing shutdown")
 			_ = server.Close()
 		}
 
-		log.Println("[Server] Server stopped successfully")
+		logger.Log.Info().Msg("[Server] Server stopped successfully. Goodbye!")
 	}
 }

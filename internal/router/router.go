@@ -13,10 +13,11 @@ import (
 	"go-mini-setup/pkg/response"
 )
 
-// Handlers collects all module handlers for injection into the router.
+// Handlers collects all module handlers and global configurations for injection into the router.
 type Handlers struct {
-	User *user.Handler
-	Auth *auth.Handler
+	User      *user.Handler
+	Auth      *auth.Handler
+	JWTSecret string
 }
 
 // NewRouter constructs the global application router with all middlewares and mounted modules.
@@ -30,6 +31,24 @@ func NewRouter(h *Handlers) http.Handler {
 	r.Use(middleware.Recoverer())
 	r.Use(middleware.CORS())
 	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(middleware.GlobalRateLimiter())
+
+	// Root Welcome / Directory Index
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		response.Success(w, http.StatusOK, "Welcome to Mini Enterprise Go Backend API", map[string]interface{}{
+			"architecture": "Modular Layered (Chi + Prisma ORM + PostgreSQL)",
+			"features":     []string{"Pino-style Colorful Logger", "JWT Authentication", "Rate Limiting", "PgBouncer Support"},
+			"version":      "1.0.0",
+			"endpoints": map[string]string{
+				"health":        "GET /health",
+				"users":         "GET /api/v1/users",
+				"create_user":   "POST /api/v1/users",
+				"auth_register": "POST /api/v1/auth/register",
+				"auth_login":    "POST /api/v1/auth/login",
+				"auth_me":       "GET /api/v1/auth/me (Bearer token required)",
+			},
+		})
+	})
 
 	// Base Health Check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +62,7 @@ func NewRouter(h *Handlers) http.Handler {
 	// API v1 Namespace
 	r.Route("/api/v1", func(r chi.Router) {
 		if h.Auth != nil {
-			auth.RegisterRoutes(r, h.Auth)
+			auth.RegisterRoutes(r, h.Auth, h.JWTSecret)
 		}
 		if h.User != nil {
 			user.RegisterRoutes(r, h.User)

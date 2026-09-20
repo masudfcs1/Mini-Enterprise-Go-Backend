@@ -6,12 +6,13 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"go-mini-setup/pkg/logger"
 	"go-mini-setup/pkg/response"
 )
 
-// RequestLogger returns a Chi-compatible middleware for logging requests with timing.
+// RequestLogger returns our colorful Pino-style HTTP request logger.
 func RequestLogger() func(next http.Handler) http.Handler {
-	return middleware.Logger
+	return logger.HTTPLogger()
 }
 
 // Recoverer returns a panic recovery middleware that catches panics and returns 500 JSON.

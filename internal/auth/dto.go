@@ -54,3 +54,8 @@ type AuthResponse struct {
 	Token string            `json:"token"`
 	User  user.UserResponse `json:"user"`
 }
+
+// MeResponse defines the user profile returned by /auth/me.
+type MeResponse struct {
+	User user.UserResponse `json:"user"`
+}
