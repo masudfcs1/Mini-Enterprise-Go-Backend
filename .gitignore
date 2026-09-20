@@ -14,7 +14,7 @@ bin/
 *.out
 
 # Environment Variables
-.env
+
 
 # OS specific files
 .DS_Store
